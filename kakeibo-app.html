@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>レシート分類 for マネーフォワード（無料版）</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --green:   #1D9E75; --green-d: #0F6E56; --green-l: #E1F5EE; --green-b: #085041;
+  --coral:   #D85A30; --coral-l: #FAECE7; --coral-b: #712B13;
+  --blue:    #378ADD; --blue-l:  #E6F1FB; --blue-b:  #0C447C;
+  --amber:   #BA7517; --amber-l: #FAEEDA; --amber-b: #633806;
+  --gray:    #888780; --gray-l:  #F1EFE8; --gray-b:  #444441;
+  --bg: #f5f5f3; --surface: #fff; --border: rgba(0,0,0,.10); --border2: rgba(0,0,0,.18);
+  --text: #1a1a18; --text2: #6b6b67; --text3: #a0a09a;
+  --r: 12px; --rs: 8px;
+}
+html,body { height:100%; background:var(--bg); font-family:-apple-system,"Hiragino Sans","Yu Gothic UI",sans-serif; color:var(--text); }
+body { display:flex; justify-content:center; }
+.app { width:100%; max-width:430px; min-height:100vh; background:var(--surface); display:flex; flex-direction:column; }
+
+/* Topbar */
+.topbar { display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:0.5px solid var(--border); background:var(--surface); position:sticky; top:0; z-index:10; }
+.tb-icon { width:32px; height:32px; background:var(--green); border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.tb-icon svg { width:18px; height:18px; fill:#fff; }
+.tb-title { font-size:15px; font-weight:600; flex:1; }
+.tb-title span { color:var(--green); }
+.tb-badge { font-size:10px; background:var(--green-l); color:var(--green-b); padding:2px 7px; border-radius:10px; font-weight:600; }
+.icon-btn { background:none; border:0.5px solid var(--border2); border-radius:var(--rs); padding:6px 10px; font-size:12px; cursor:pointer; color:var(--text2); display:flex; align-items:center; gap:4px; }
+.icon-btn:hover { background:var(--bg); }
+.icon-btn svg { width:13px; height:13px; }
+
+/* Tabs */
+.tabs { display:flex; gap:2px; padding:10px 12px; background:var(--bg); }
+.tab { flex:1; text-align:center; padding:8px 4px; font-size:11px; border-radius:var(--rs); cursor:pointer; color:var(--text2); transition:all .15s; display:flex; flex-direction:column; align-items:center; gap:3px; }
+.tab svg { width:18px; height:18px; }
+.tab.on { background:var(--surface); color:var(--green); font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+
+/* Panes */
+.pane { display:none; padding:14px 16px 80px; overflow-y:auto; }
+.pane.on { display:block; }
+
+/* Cards */
+.card { background:var(--surface); border:0.5px solid var(--border); border-radius:var(--r); padding:14px; margin-bottom:10px; }
+
+/* Upload zone */
+.upload-zone { border:1.5px dashed var(--border2); border-radius:var(--r); padding:26px 16px; display:flex; flex-direction:column; align-items:center; gap:10px; cursor:pointer; background:var(--bg); transition:all .15s; margin-bottom:10px; }
+.upload-zone:hover,.upload-zone.drag { background:var(--green-l); border-color:var(--green); }
+.upload-zone input { display:none; }
+.uz-circle { width:52px; height:52px; background:var(--green-l); border-radius:50%; display:flex; align-items:center; justify-content:center; }
+.uz-circle svg { width:26px; height:26px; fill:var(--green); }
+
+/* Buttons */
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; border:0.5px solid var(--border2); border-radius:var(--rs); padding:9px 16px; font-size:13px; font-weight:500; background:var(--surface); color:var(--text); cursor:pointer; transition:all .12s; }
+.btn:hover { background:var(--bg); }
+.btn:active { transform:scale(.98); }
+.btn:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+.btn-green { background:var(--green); border-color:var(--green); color:#fff; }
+.btn-green:hover { background:var(--green-d); }
+.btn-full { width:100%; padding:11px; }
+.btn-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+
+/* Preview */
+.preview-img { width:100%; max-height:200px; object-fit:contain; border-radius:var(--rs); border:0.5px solid var(--border); margin-bottom:10px; }
+
+/* Steps */
+.step-item { display:flex; align-items:center; gap:8px; font-size:12px; padding:4px 0; color:var(--text3); }
+.step-item.done { color:var(--green); }
+.step-item svg { width:15px; height:15px; flex-shrink:0; }
+
+/* Spinner */
+.spinner { width:15px; height:15px; border:2px solid var(--border2); border-top-color:var(--green); border-radius:50%; animation:spin .7s linear infinite; flex-shrink:0; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* Notices */
+.notice { border-radius:var(--rs); padding:10px 12px; font-size:12px; display:flex; gap:8px; align-items:flex-start; margin-bottom:10px; line-height:1.5; }
+.notice svg { width:15px; height:15px; flex-shrink:0; margin-top:1px; }
+.n-warn { background:#FAEEDA; border:0.5px solid #FAC775; color:#633806; }
+.n-info { background:var(--green-l); border:0.5px solid #9FE1CB; color:var(--green-b); }
+.n-ok   { background:var(--green-l); border:0.5px solid var(--green); color:var(--green-b); }
+
+/* Category result */
+.cat-head { display:flex; align-items:center; gap:8px; margin:14px 0 7px; }
+.cat-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.cat-lbl { font-size:13px; font-weight:600; flex:1; }
+.cat-total { font-size:13px; font-weight:600; }
+.item-row { display:flex; align-items:center; padding:8px 10px; background:var(--surface); border:0.5px solid var(--border); border-radius:var(--rs); margin-bottom:5px; gap:7px; }
+.item-name { font-size:13px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.item-badge { font-size:10px; padding:2px 8px; border-radius:10px; white-space:nowrap; flex-shrink:0; }
+.item-price { font-size:13px; font-weight:600; white-space:nowrap; }
+.item-edit { background:none; border:none; cursor:pointer; color:var(--text3); padding:3px; display:flex; }
+.item-edit:hover { color:var(--text); }
+.item-edit svg { width:15px; height:15px; }
+
+/* Summary */
+.sum-row { display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-bottom:0.5px solid var(--border); color:var(--text2); }
+.sum-row:last-child { border:none; font-weight:600; font-size:14px; color:var(--text); }
+
+/* Bar chart */
+.bar-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.bar-lbl { font-size:11px; color:var(--text2); width:76px; text-align:right; flex-shrink:0; }
+.bar-track { flex:1; height:12px; background:var(--bg); border-radius:4px; overflow:hidden; }
+.bar-fill { height:100%; border-radius:4px; transition:width .5s ease; }
+.bar-val { font-size:11px; font-weight:600; width:56px; text-align:right; flex-shrink:0; }
+
+/* Sheet table */
+.sheet-wrap { overflow-x:auto; border-radius:var(--rs); border:0.5px solid var(--border); }
+.sheet-table { width:100%; border-collapse:collapse; font-size:11px; }
+.sheet-table th { background:var(--green); color:#fff; padding:6px 7px; text-align:left; font-weight:600; white-space:nowrap; }
+.sheet-table td { padding:5px 7px; border-bottom:0.5px solid var(--border); color:var(--text2); white-space:nowrap; max-width:90px; overflow:hidden; text-overflow:ellipsis; }
+.sheet-table tr:last-child td { border-bottom:none; }
+
+/* GAS status */
+.gas-bar { display:flex; align-items:center; gap:8px; padding:9px 12px; background:var(--bg); border-radius:var(--rs); margin-bottom:10px; font-size:12px; }
+.gas-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; background:var(--gray); }
+.gas-dot.on { background:var(--green); }
+
+/* Modal */
+.modal-bg { background:rgba(0,0,0,.35); border-radius:var(--r); padding:16px; margin-bottom:12px; display:flex; align-items:center; justify-content:center; min-height:200px; }
+.modal-box { background:var(--surface); border-radius:var(--r); border:0.5px solid var(--border); padding:16px; width:100%; }
+.modal-title { font-size:14px; font-weight:600; margin-bottom:12px; }
+
+/* Form */
+.field { margin-bottom:10px; }
+.field label { display:block; font-size:12px; color:var(--text2); margin-bottom:4px; }
+.field input,.field select { width:100%; font-size:13px; padding:8px 11px; border:0.5px solid var(--border2); border-radius:var(--rs); background:var(--surface); color:var(--text); -webkit-appearance:none; }
+.field input:focus,.field select:focus { outline:none; border-color:var(--green); }
+
+/* History */
+.hist-row { display:flex; align-items:center; gap:10px; padding:11px 12px; background:var(--surface); border:0.5px solid var(--border); border-radius:var(--r); margin-bottom:6px; cursor:pointer; }
+.hist-row:hover { background:var(--bg); }
+.hist-icon { width:36px; height:36px; background:var(--green-l); border-radius:var(--rs); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.hist-icon svg { width:18px; height:18px; fill:var(--green); }
+.hist-info { flex:1; min-width:0; }
+.hist-date { font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hist-sub  { font-size:11px; color:var(--text2); margin-top:2px; }
+.hist-amt  { font-size:14px; font-weight:600; }
+
+/* MF steps */
+.mf-steps { list-style:none; counter-reset:s; }
+.mf-steps li { counter-increment:s; display:flex; gap:9px; font-size:12px; color:var(--text2); margin-bottom:8px; line-height:1.5; }
+.mf-steps li::before { content:counter(s); background:var(--green-l); color:var(--green-b); border-radius:50%; width:20px; height:20px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
+
+/* Free badge */
+.free-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+.chip { font-size:11px; padding:3px 9px; border-radius:10px; font-weight:500; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="tb-icon">
+      <svg viewBox="0 0 24 24"><path d="M9 7H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3m-1-4H9a1 1 0 0 0-1 1v4h8V4a1 1 0 0 0-1-1z"/></svg>
+    </div>
+    <div class="tb-title">レシート分類 <span>for MF</span></div>
+    <span class="tb-badge">完全無料</span>
+    <button class="icon-btn" onclick="openSettings()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      設定
+    </button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab on" id="t0" onclick="goTab(0)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      スキャン
+    </div>
+    <div class="tab" id="t1" onclick="goTab(1)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      分類結果
+    </div>
+    <div class="tab" id="t2" onclick="goTab(2)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+      シート
+    </div>
+    <div class="tab" id="t3" onclick="goTab(3)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      履歴
+    </div>
+  </div>
+
+  <!-- ══ TAB 0: スキャン ══ -->
+  <div class="pane on" id="p0">
+    <div id="modal0"></div>
+
+    <div class="free-chips">
+      <span class="chip" style="background:var(--green-l);color:var(--green-b)">📷 Google Vision OCR（月1,000回無料）</span>
+      <span class="chip" style="background:var(--blue-l);color:var(--blue-b)">🏷 キーワード自動分類（無制限無料）</span>
+      <span class="chip" style="background:var(--amber-l);color:var(--amber-b)">📊 GASスプレッドシート（無料）</span>
+    </div>
+
+    <div id="warn-api" class="notice n-warn" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span>Google Cloud Vision APIキーが未設定です。「設定」から入力してください。デモモードでも動作確認できます。</span>
+    </div>
+
+    <div class="upload-zone" id="drop-zone"
+      onclick="document.getElementById('file-inp').click()"
+      ondragover="event.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')"
+      ondrop="onDrop(event)">
+      <input type="file" id="file-inp" accept="image/*" onchange="onFile(this.files[0])">
+      <div class="uz-circle">
+        <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </div>
+      <div style="font-size:14px;color:var(--text2);text-align:center;line-height:1.5">
+        レシートを撮影 / 画像を選択<br>
+        <span style="font-size:11px;color:var(--text3)">JPG・PNG・HEIC 対応</span>
+      </div>
+      <button class="btn" onclick="event.stopPropagation()">画像を選択</button>
+    </div>
+
+    <button class="btn btn-full" style="margin-bottom:8px" onclick="runDemo()">✦ デモデータで試す</button>
+
+    <div id="proc-area" style="display:none;margin-top:4px">
+      <img id="preview" class="preview-img" src="" alt="プレビュー">
+      <div id="steps" style="margin-bottom:12px"></div>
+      <button class="btn btn-green btn-full" id="analyze-btn" onclick="analyze()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        OCRで読み取り・自動分類する
+      </button>
+    </div>
+  </div>
+
+  <!-- ══ TAB 1: 分類結果 ══ -->
+  <div class="pane" id="p1">
+    <div id="result-area">
+      <div style="text-align:center;padding:40px 16px;font-size:13px;color:var(--text2)">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5" style="display:block;margin:0 auto 12px"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        レシートをスキャンすると<br>ここに分類結果が表示されます
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB 2: シート ══ -->
+  <div class="pane" id="p2">
+    <div id="modal2"></div>
+    <div class="gas-bar">
+      <div class="gas-dot" id="gas-dot"></div>
+      <span id="gas-txt" style="flex:1;color:var(--text2)">Google Apps Script 未設定</span>
+      <button class="icon-btn" onclick="openGasModal()">設定する</button>
+    </div>
+
+    <div id="url-card" class="card" style="display:none">
+      <div class="field">
+        <label>GAS ウェブアプリ URL</label>
+        <input type="text" id="gas-url-disp" readonly style="background:var(--bg);font-size:11px">
+      </div>
+      <button class="btn btn-full" onclick="fetchSheetData()">シートデータを取得・更新</button>
+    </div>
+
+    <div style="font-size:13px;font-weight:600;margin:4px 0 8px">スプレッドシートプレビュー</div>
+    <div class="sheet-wrap">
+      <table class="sheet-table">
+        <thead><tr><th>日付</th><th>店名</th><th>品目</th><th>カテゴリ</th><th>MFカテゴリ</th><th>金額</th></tr></thead>
+        <tbody id="sheet-tbody">
+          <tr><td colspan="6" style="text-align:center;padding:16px;color:var(--text3)">データなし</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:5px;margin-bottom:12px">※ 最新8件を表示</div>
+
+    <div class="btn-row">
+      <button class="btn btn-full" onclick="exportCSV()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        CSVダウンロード
+      </button>
+      <button class="btn btn-green btn-full" id="gs-btn" onclick="writeToGas()" disabled>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        シートに書込
+      </button>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">マネーフォワードへの取込手順</div>
+      <ol class="mf-steps">
+        <li>「シートに書込」でGoogleスプレッドシートへ送信</li>
+        <li>スプレッドシートを開き「ファイル → ダウンロード → CSV (.csv)」</li>
+        <li>マネーフォワード家計簿 →「手動入力」→「ファイルからインポート」</li>
+        <li>CSVを選択してインポート完了</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ══ TAB 3: 履歴 ══ -->
+  <div class="pane" id="p3">
+    <div id="hist-area">
+      <div style="text-align:center;padding:40px 16px;font-size:13px;color:var(--text2)">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5" style="display:block;margin:0 auto 12px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        スキャン履歴がありません
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.app -->
+<script>
+/* ══════════════════════════════════════════════════
+   カテゴリ定義
+══════════════════════════════════════════════════ */
+const CATS = {
+  shokuzai:{ label:'食材・食品',    dot:'#1D9E75', bg:'#E1F5EE', tc:'#085041', mf:'食費（食材）' },
+  gaishoku:{ label:'外食',          dot:'#D85A30', bg:'#FAECE7', tc:'#712B13', mf:'食費（外食）' },
+  conbini: { label:'コンビニ',      dot:'#378ADD', bg:'#E6F1FB', tc:'#0C447C', mf:'食費（コンビニ）' },
+  drink:   { label:'飲み物・カフェ', dot:'#BA7517', bg:'#FAEEDA', tc:'#633806', mf:'食費（飲み物）' },
+  other:   { label:'その他食費',    dot:'#888780', bg:'#F1EFE8', tc:'#444441', mf:'食費（その他）' },
+};
+
+/* ══════════════════════════════════════════════════
+   キーワード辞書（分類ルール）
+   ※ ここにキーワードを追加するだけで分類精度が上がります
+══════════════════════════════════════════════════ */
+const KW = {
+  shokuzai: [
+    // 肉・魚・卵・乳
+    '肉','鶏','豚','牛','ひき肉','もも','むね','バラ','ロース','ミンチ',
+    '魚','鮭','さけ','サーモン','まぐろ','マグロ','さば','サバ','あじ','アジ',
+    'えび','エビ','いか','イカ','たこ','タコ','貝','ホタテ','しらす',
+    'たまご','卵','タマゴ','豆腐','とうふ','納豆','チーズ','バター','牛乳','ミルク',
+    'ヨーグルト','生クリーム',
+    // 野菜・果物
+    'キャベツ','白菜','ほうれん草','小松菜','レタス','ブロッコリー','ほうれん',
+    'トマト','なす','ナス','きゅうり','ピーマン','にんじん','玉ねぎ','たまねぎ',
+    'じゃがいも','さつまいも','大根','かぼちゃ','ごぼう','れんこん','もやし',
+    'ねぎ','ニラ','しめじ','えのき','まいたけ','エリンギ','きのこ',
+    'りんご','バナナ','みかん','ぶどう','いちご','桃','梨','すいか',
+    // 主食・乾物・調味料
+    '米','ごはん','パン','うどん','そば','そうめん','パスタ','ラーメン麺',
+    'みそ','醤油','しょうゆ','塩','砂糖','油','オリーブ','酢','みりん','料理酒',
+    'だし','ケチャップ','マヨネーズ','ソース','味噌','ドレッシング',
+    '小麦粉','片栗粉','パン粉',
+    // 冷凍・加工食品
+    '冷凍','冷とう','豆乳','缶詰','ツナ缶','コーン缶',
+    // 雑貨（食材扱い）
+    'ラップ','アルミ','キッチン','洗剤','スポンジ',
+  ],
+  gaishoku: [
+    'ランチ','ディナー','定食','セット','テイクアウト','お弁当','弁当',
+    'すし','寿司','スシ','ラーメン','うどん店','そば店','焼肉','焼き鳥',
+    'ピザ','バーガー','ハンバーガー','マクドナルド','モスバーガー','ケンタッキー',
+    'ファミレス','ガスト','デニーズ','サイゼ','居酒屋','焼き肉','とんかつ',
+    '牛丼','吉野家','すき家','松屋','なか卯','天丼','かつ丼','親子丼',
+    '出前','デリバリー','出前館','ウーバー','uber','Uber','foodpanda',
+  ],
+  conbini: [
+    'おにぎり','サンドイッチ','サンド','惣菜','そうざい','お惣菜',
+    'カップ麺','カップラーメン','インスタント','袋麺',
+    'スナック','ポテチ','ポテトチップス','チップス','クッキー','ビスケット',
+    'チョコ','チョコレート','グミ','キャンディ','飴','ガム','ラムネ',
+    'アイス','アイスクリーム','ガリガリ','ハーゲン',
+    '肉まん','中華まん','ホットスナック',
+    'セブン','ローソン','ファミマ','ファミリーマート','ミニストップ','デイリー',
+  ],
+  drink: [
+    'コーヒー','珈琲','カフェ','エスプレッソ','ラテ','カプチーノ','モカ',
+    'お茶','緑茶','ほうじ茶','麦茶','烏龍茶','ウーロン茶','紅茶','ハーブティー',
+    'ジュース','スムージー','野菜ジュース','オレンジジュース','りんごジュース',
+    'ミネラルウォーター','水','炭酸水','ソーダ','コーラ','スプライト','ファンタ',
+    '牛乳飲料','乳飲料','豆乳飲料','カルピス','ヤクルト',
+    'ビール','チューハイ','ハイボール','サワー','ワイン','日本酒','焼酎',
+    'スターバックス','スタバ','ドトール','コメダ','タリーズ','ベローチェ',
+    '缶コーヒー','ペットボトル',
+  ],
+};
+
+/* ══════════════════════════════════════════════════
+   品目 → カテゴリ 判定（キーワードマッチ）
+══════════════════════════════════════════════════ */
+function classify(name) {
+  const n = name.toLowerCase();
+  for (const [cat, words] of Object.entries(KW)) {
+    if (words.some(w => n.includes(w.toLowerCase()))) return cat;
+  }
+  return 'other';
+}
+
+/* ══════════════════════════════════════════════════
+   Google Cloud Vision API でOCR
+══════════════════════════════════════════════════ */
+async function visionOCR(base64, mime) {
+  const url = `https://vision.googleapis.com/v1/images:annotate?key=${S.visionKey}`;
+  const body = {
+    requests: [{
+      image: { content: base64 },
+      features: [{ type: 'TEXT_DETECTION', maxResults: 1 }],
+    }]
+  };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Vision API error'); }
+  const data = await res.json();
+  const text = data.responses?.[0]?.fullTextAnnotation?.text || '';
+  if (!text) throw new Error('テキストが検出されませんでした。レシートをより明るい場所で撮影してください。');
+  return text;
+}
+
+/* ══════════════════════════════════════════════════
+   OCRテキスト → 品目・金額パース
+══════════════════════════════════════════════════ */
+function parseReceipt(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // 店名：最初の意味のある行
+  let store = '';
+  for (const l of lines) {
+    if (l.length >= 2 && l.length <= 20 && !/^\d/.test(l) && !/^[¥￥]/.test(l)) {
+      store = l; break;
+    }
+  }
+
+  // 日付
+  let date = today();
+  for (const l of lines) {
+    const m = l.match(/(\d{4})[\/\-年](\d{1,2})[\/\-月](\d{1,2})/);
+    if (m) { date = `${m[1]}/${m[2].padStart(2,'0')}/${m[3].padStart(2,'0')}`; break; }
+    const m2 = l.match(/(\d{2})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if (m2) { date = `20${m2[1]}/${m2[2].padStart(2,'0')}/${m2[3].padStart(2,'0')}`; break; }
+  }
+
+  // 品目・金額
+  const items = [];
+  // パターン A: "品目名　¥金額" 形式
+  // パターン B: "品目名　金額" 形式（スペース区切り）
+  const priceRe = /[¥￥]?\s*(\d[\d,]+)/;
+  const skipWords = ['合計','小計','税','消費税','お釣','おつり','お預','現金','カード','ポイント','割引','値引','合　計','お買上'];
+
+  for (const line of lines) {
+    if (skipWords.some(w => line.includes(w))) continue;
+
+    // 行中に金額らしい数字があるか
+    const priceMatch = line.match(/[¥￥]\s*(\d[\d,]+)|(\d[\d,]+)\s*円|[\s　]+(\d[\d,]{2,})\s*$/);
+    if (!priceMatch) continue;
+
+    const priceStr = (priceMatch[1] || priceMatch[2] || priceMatch[3]).replace(/,/g, '');
+    const price = parseInt(priceStr, 10);
+    if (!price || price > 50000 || price < 10) continue;
+
+    // 品目名：価格部分を除いた前半
+    let name = line
+      .replace(/[¥￥]\s*[\d,]+/, '')
+      .replace(/[\d,]+\s*円/, '')
+      .replace(/[\s　]+[\d,]{3,}$/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!name || name.length < 1 || /^\d+$/.test(name)) continue;
+    if (name.length > 30) name = name.slice(0, 30);
+
+    items.push({ name, price, cat: classify(name), id: rid() });
+  }
+
+  return { store, date, items };
+}
+
+/* ══════════════════════════════════════════════════
+   アプリ状態
+══════════════════════════════════════════════════ */
+let S = {
+  visionKey: localStorage.getItem('vision_api_key') || '',
+  gasUrl:    localStorage.getItem('gas_url') || '',
+  items: [], store: '', date: '',
+  imgData: null, imgMime: 'image/jpeg',
+  history: JSON.parse(localStorage.getItem('receipt_history') || '[]'),
+  allRows: JSON.parse(localStorage.getItem('all_rows') || '[]'),
+};
+
+const fmt   = n => '¥' + Math.round(n).toLocaleString('ja-JP');
+const today = () => new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit'});
+const rid   = () => Math.random().toString(36).slice(2, 8);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ══════════════════════════════════════════════════
+   UI ユーティリティ
+══════════════════════════════════════════════════ */
+function goTab(i) {
+  [0,1,2,3].forEach(j => {
+    document.getElementById('t'+j).classList.toggle('on', j===i);
+    document.getElementById('p'+j).classList.toggle('on', j===i);
+  });
+}
+function closeModal(n) { document.getElementById('modal'+n).innerHTML = ''; }
+function checkWarn()   { document.getElementById('warn-api').style.display = S.visionKey ? 'none' : 'flex'; }
+
+/* ══════════════════════════════════════════════════
+   設定モーダル
+══════════════════════════════════════════════════ */
+function openSettings() {
+  document.getElementById('modal0').innerHTML = `
+    <div class="modal-bg"><div class="modal-box">
+      <div class="modal-title">⚙️ API設定（Google Cloud Vision）</div>
+      <div class="notice n-info" style="font-size:11px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>Google Cloud Console で「Cloud Vision API」を有効化し、APIキーを発行してください。月1,000回まで完全無料です。</span>
+      </div>
+      <div class="field" style="margin-top:8px">
+        <label>Google Cloud Vision API Key</label>
+        <input type="password" id="inp-vkey" placeholder="AIzaSy..." value="${S.visionKey}">
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5">
+        キーはこのブラウザにのみ保存されます（localStorage）。
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="saveSettings()">保存</button>
+        <button class="btn" onclick="closeModal(0)">閉じる</button>
+      </div>
+    </div></div>`;
+}
+function saveSettings() {
+  S.visionKey = document.getElementById('inp-vkey').value.trim();
+  localStorage.setItem('vision_api_key', S.visionKey);
+  closeModal(0);
+  checkWarn();
+}
+
+/* ══════════════════════════════════════════════════
+   GAS モーダル
+══════════════════════════════════════════════════ */
+function openGasModal() {
+  document.getElementById('modal2').innerHTML = `
+    <div class="modal-bg"><div class="modal-box">
+      <div class="modal-title">🔗 Google Apps Script 設定</div>
+      <div class="notice n-info" style="font-size:11px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>同梱の <b>SpreadsheetScript.gs</b> をスプレッドシートの Apps Script に貼り付け、ウェブアプリとして公開したURLを入力してください。</span>
+      </div>
+      <div class="field" style="margin-top:8px">
+        <label>GAS ウェブアプリ URL</label>
+        <input type="url" id="inp-gasurl" placeholder="https://script.google.com/macros/s/.../exec" value="${S.gasUrl}">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="saveGasUrl()">保存・接続</button>
+        <button class="btn" onclick="closeModal(2)">閉じる</button>
+      </div>
+    </div></div>`;
+}
+function saveGasUrl() {
+  S.gasUrl = document.getElementById('inp-gasurl').value.trim();
+  localStorage.setItem('gas_url', S.gasUrl);
+  closeModal(2);
+  updateGasBar();
+}
+function updateGasBar() {
+  const on = !!S.gasUrl;
+  document.getElementById('gas-dot').classList.toggle('on', on);
+  document.getElementById('gas-txt').textContent = on ? 'Google Apps Script 接続済み' : 'Google Apps Script 未設定';
+  document.getElementById('url-card').style.display = on ? '' : 'none';
+  if (on) document.getElementById('gas-url-disp').value = S.gasUrl;
+  document.getElementById('gs-btn').disabled = !on;
+}
+
+/* ══════════════════════════════════════════════════
+   ファイル読み込み
+══════════════════════════════════════════════════ */
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) onFile(f);
+}
+function onFile(file) {
+  if (!file) return;
+  S.imgMime = file.type || 'image/jpeg';
+  const r = new FileReader();
+  r.onload = ev => { S.imgData = ev.target.result; showProc(); };
+  r.readAsDataURL(file);
+}
+function showProc() {
+  document.getElementById('preview').src = S.imgData;
+  document.getElementById('proc-area').style.display = '';
+  renderSteps([]);
+}
+function renderSteps(done) {
+  const LIST = [
+    {k:'ocr', l:'Google Vision API でテキストを読み取り中…'},
+    {k:'cls', l:'キーワード辞書でカテゴリ分類中…'},
+    {k:'ok',  l:'分類完了'},
+  ];
+  document.getElementById('steps').innerHTML = LIST.map(s => {
+    const d = done.includes(s.k);
+    return `<div class="step-item ${d?'done':''}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="${d?'var(--green)':'var(--text3)'}" stroke-width="2">
+        ${d
+          ? '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>'
+          : '<circle cx="12" cy="12" r="10"/>'}
+      </svg>
+      ${s.l}
+    </div>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════════════
+   メイン解析処理
+══════════════════════════════════════════════════ */
+async function analyze() {
+  const btn = document.getElementById('analyze-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> 解析中…';
+  try {
+    if (!S.visionKey) {
+      await sleep(1200);
+      injectDemo();
+    } else {
+      renderSteps([]);
+      const b64 = S.imgData.split(',')[1];
+      const ocrText = await visionOCR(b64, S.imgMime);
+      renderSteps(['ocr']);
+
+      const parsed = parseReceipt(ocrText);
+      renderSteps(['ocr','cls']);
+
+      if (!parsed.items.length) {
+        throw new Error('品目が検出されませんでした。レシートをはっきり撮影してください。');
+      }
+      S.store = parsed.store;
+      S.date  = parsed.date;
+      S.items = parsed.items;
+      renderSteps(['ocr','cls','ok']);
+    }
+    commitRows();
+    renderResult();
+    renderSheetPreview();
+    goTab(1);
+  } catch(e) {
+    alert('エラー: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> OCRで読み取り・自動分類する';
+}
+
+/* ══════════════════════════════════════════════════
+   デモデータ
+══════════════════════════════════════════════════ */
+const DEMO = [
+  {name:'鶏もも肉 300g',  price:298, cat:'shokuzai'},
+  {name:'キャベツ',       price:148, cat:'shokuzai'},
+  {name:'たまご 10個',    price:248, cat:'shokuzai'},
+  {name:'にんじん 3本',   price: 88, cat:'shokuzai'},
+  {name:'木綿豆腐 2丁',   price:138, cat:'shokuzai'},
+  {name:'みそ 750g',      price:328, cat:'shokuzai'},
+  {name:'ランチセット',   price:890, cat:'gaishoku'},
+  {name:'おにぎり 鮭',   price:138, cat:'conbini'},
+  {name:'サンドイッチ',   price:298, cat:'conbini'},
+  {name:'コーヒー 缶',   price:148, cat:'drink'},
+  {name:'緑茶 500ml',     price:140, cat:'drink'},
+];
+function runDemo() { injectDemo(); goTab(1); }
+function injectDemo() {
+  S.store = 'イオン ○○店';
+  S.date  = today();
+  S.items = DEMO.map(i => ({...i, id:rid()}));
+  commitRows(); renderResult(); renderSheetPreview();
+}
+
+/* ══════════════════════════════════════════════════
+   行データ確定・履歴保存
+══════════════════════════════════════════════════ */
+function commitRows() {
+  const newRows = S.items.map(i => ({
+    date:  S.date, store: S.store, name: i.name,
+    cat:   CATS[i.cat]?.label || CATS.other.label,
+    mfCat: CATS[i.cat]?.mf    || CATS.other.mf,
+    price: i.price, memo: 'レシートスキャン',
+  }));
+  S.allRows = [...S.allRows, ...newRows];
+  localStorage.setItem('all_rows', JSON.stringify(S.allRows));
+
+  S.history.unshift({
+    id: Date.now(), date: S.date, store: S.store,
+    count: S.items.length,
+    total: S.items.reduce((a,b) => a+b.price, 0),
+    snapshot: [...S.items],
+  });
+  if (S.history.length > 50) S.history.pop();
+  localStorage.setItem('receipt_history', JSON.stringify(S.history));
+  renderHistory();
+}
+
+/* ══════════════════════════════════════════════════
+   分類結果レンダリング
+══════════════════════════════════════════════════ */
+function renderResult() {
+  const items = S.items;
+  if (!items.length) {
+    document.getElementById('result-area').innerHTML = '<div style="text-align:center;padding:32px;font-size:13px;color:var(--text2)">品目がありません</div>';
+    return;
+  }
+  const bycat = {};
+  items.forEach(i => { (bycat[i.cat] = bycat[i.cat]||[]).push(i); });
+  const total = items.reduce((a,b) => a+b.price, 0);
+
+  let h = `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);margin-bottom:12px">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+    ${S.store}&nbsp;&nbsp;${S.date}&nbsp;&nbsp;${items.length}品目
+  </div>`;
+
+  Object.keys(CATS).forEach(cat => {
+    const list = bycat[cat]; if (!list?.length) return;
+    const ct = list.reduce((a,b) => a+b.price, 0);
+    h += `<div class="cat-head">
+      <div class="cat-dot" style="background:${CATS[cat].dot}"></div>
+      <span class="cat-lbl">${CATS[cat].label}</span>
+      <span class="cat-total" style="color:${CATS[cat].dot}">${fmt(ct)}</span>
+    </div>`;
+    list.forEach(item => {
+      h += `<div class="item-row">
+        <span class="item-name">${item.name}</span>
+        <span class="item-badge" style="background:${CATS[item.cat]?.bg||'#F1EFE8'};color:${CATS[item.cat]?.tc||'#444441'}">${CATS[item.cat]?.label||item.cat}</span>
+        <span class="item-price">${fmt(item.price)}</span>
+        <button class="item-edit" onclick="editItem('${item.id}')" aria-label="編集">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+      </div>`;
+    });
+  });
+
+  // サマリー
+  h += `<div class="card" style="margin-top:16px">`;
+  Object.keys(CATS).forEach(cat => {
+    const list = bycat[cat]; if (!list?.length) return;
+    const ct = list.reduce((a,b) => a+b.price, 0);
+    h += `<div class="sum-row">
+      <span style="display:flex;align-items:center;gap:5px">
+        <span style="width:7px;height:7px;border-radius:50%;background:${CATS[cat].dot};display:inline-block"></span>
+        ${CATS[cat].label}
+      </span>
+      <span style="color:${CATS[cat].dot}">${fmt(ct)}</span>
+    </div>`;
+  });
+  h += `<div class="sum-row"><span>合計</span><span>${fmt(total)}</span></div></div>`;
+
+  // 棒グラフ
+  h += `<div class="card" style="margin-top:10px"><div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">カテゴリ別内訳</div>`;
+  Object.keys(CATS).forEach(cat => {
+    const list = bycat[cat]; if (!list?.length) return;
+    const ct = list.reduce((a,b) => a+b.price, 0);
+    const pct = total > 0 ? Math.round(ct/total*100) : 0;
+    h += `<div class="bar-row">
+      <div class="bar-lbl">${CATS[cat].label}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${CATS[cat].dot}"></div></div>
+      <div class="bar-val" style="color:${CATS[cat].dot}">${fmt(ct)}</div>
+    </div>`;
+  });
+  h += `</div>`;
+
+  // アクションボタン
+  h += `<div class="btn-row">
+    <button class="btn btn-full" onclick="goTab(2)">シートを確認</button>
+    <button class="btn btn-green btn-full" onclick="goTab(2);setTimeout(writeToGas,200)">シートに書込</button>
+  </div>`;
+
+  document.getElementById('result-area').innerHTML = h;
+}
+
+/* ══════════════════════════════════════════════════
+   品目編集
+══════════════════════════════════════════════════ */
+let _editId = null;
+function editItem(id) {
+  const item = S.items.find(i => i.id===id); if (!item) return;
+  _editId = id;
+  const opts = Object.keys(CATS).map(k =>
+    `<option value="${k}" ${k===item.cat?'selected':''}>${CATS[k].label}</option>`
+  ).join('');
+  const wrap = document.createElement('div');
+  wrap.id = 'edit-modal';
+  wrap.innerHTML = `<div class="modal-bg"><div class="modal-box">
+    <div class="modal-title">✏️ 品目を編集</div>
+    <div class="field"><label>品名</label><input id="e-name" value="${item.name}"></div>
+    <div class="field"><label>金額（円）</label><input id="e-price" type="number" value="${item.price}"></div>
+    <div class="field"><label>カテゴリ</label><select id="e-cat">${opts}</select></div>
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="saveEdit()">保存</button>
+      <button class="btn" onclick="document.getElementById('edit-modal').remove()">キャンセル</button>
+    </div>
+  </div></div>`;
+  document.getElementById('result-area').prepend(wrap);
+}
+function saveEdit() {
+  const item = S.items.find(i => i.id===_editId);
+  if (item) {
+    item.name  = document.getElementById('e-name').value;
+    item.price = parseInt(document.getElementById('e-price').value)||0;
+    item.cat   = document.getElementById('e-cat').value;
+  }
+  document.getElementById('edit-modal').remove();
+  const prev = S.history[0]?.count || 0;
+  S.allRows = S.allRows.slice(0, S.allRows.length - prev);
+  commitRows(); renderResult(); renderSheetPreview();
+}
+
+/* ══════════════════════════════════════════════════
+   シートプレビュー
+══════════════════════════════════════════════════ */
+function renderSheetPreview() {
+  const rows = S.allRows.slice(-8);
+  const tbody = document.getElementById('sheet-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--text3)">データなし</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `<tr>
+    <td>${r.date}</td><td>${r.store}</td><td>${r.name}</td>
+    <td>${r.cat}</td><td>${r.mfCat}</td><td>${fmt(r.price)}</td>
+  </tr>`).join('');
+}
+
+/* ══════════════════════════════════════════════════
+   GAS 書き込み
+══════════════════════════════════════════════════ */
+async function writeToGas() {
+  if (!S.gasUrl) { alert('先にGASのURLを設定してください（シートタブ）'); goTab(2); return; }
+  if (!S.allRows.length) { alert('書き込むデータがありません'); return; }
+  const btn = document.getElementById('gs-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> 書込中…';
+  try {
+    const res = await fetch(S.gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'append', rows: S.allRows }),
+    });
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+    alert(`✅ ${d.appended}件をGoogleスプレッドシートに書き込みました！\n\nスプレッドシート → ファイル → ダウンロード → CSV\n→ マネーフォワードでインポートできます`);
+  } catch(e) {
+    alert('書き込みエラー: ' + e.message + '\n\nGASのデプロイ設定（アクセス：全員）をご確認ください。');
+  }
+  btn.disabled = false;
+  btn.innerHTML = 'シートに書込';
+}
+
+/* ══════════════════════════════════════════════════
+   GAS からデータ取得
+══════════════════════════════════════════════════ */
+async function fetchSheetData() {
+  if (!S.gasUrl) return;
+  try {
+    const res = await fetch(S.gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'getAll' }),
+    });
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+    const rows = (d.rows||[]).slice(-8);
+    const tbody = document.getElementById('sheet-tbody');
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--text3)">データなし</td></tr>'; return; }
+    tbody.innerHTML = rows.map(r => `<tr>
+      <td>${r.date}</td><td>${r.store}</td><td>${r.name}</td>
+      <td>${r.cat}</td><td>${r.mfCat}</td><td>${fmt(r.price)}</td>
+    </tr>`).join('');
+  } catch(e) {
+    alert('取得エラー: ' + e.message);
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   CSV エクスポート
+══════════════════════════════════════════════════ */
+function exportCSV() {
+  if (!S.allRows.length) { alert('データがありません'); return; }
+  const header = ['日付','店名','品目','カテゴリ','MFカテゴリ','金額（円）','メモ'];
+  const rows = [header, ...S.allRows.map(r => [r.date,r.store,r.name,r.cat,r.mfCat,r.price,r.memo])];
+  const csv = '\uFEFF' + rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+  a.download = 'receipt_mf_' + today().replace(/\//g,'') + '.csv';
+  a.click();
+}
+
+/* ══════════════════════════════════════════════════
+   履歴
+══════════════════════════════════════════════════ */
+function renderHistory() {
+  const el = document.getElementById('hist-area');
+  if (!S.history.length) {
+    el.innerHTML = `<div style="text-align:center;padding:40px 16px;font-size:13px;color:var(--text2)">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5" style="display:block;margin:0 auto 12px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      スキャン履歴がありません
+    </div>`;
+    return;
+  }
+  el.innerHTML = S.history.map(h => `
+    <div class="hist-row" onclick="loadHist(${h.id})">
+      <div class="hist-icon">
+        <svg viewBox="0 0 24 24"><path d="M9 7H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3"/><rect x="9" y="3" width="6" height="6" rx="1"/></svg>
+      </div>
+      <div class="hist-info">
+        <div class="hist-date">${h.date}　${h.store}</div>
+        <div class="hist-sub">${h.count}品目</div>
+      </div>
+      <div class="hist-amt">${fmt(h.total)}</div>
+    </div>`).join('');
+}
+function loadHist(id) {
+  const h = S.history.find(x => x.id===id); if (!h) return;
+  S.items = h.snapshot; S.store = h.store; S.date = h.date;
+  renderResult(); goTab(1);
+}
+
+/* ══════════════════════════════════════════════════
+   初期化
+══════════════════════════════════════════════════ */
+checkWarn();
+updateGasBar();
+renderHistory();
+renderSheetPreview();
+</script>
+</body>
+</html>
