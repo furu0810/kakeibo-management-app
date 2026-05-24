@@ -1,5 +1,8 @@
 # レシート分類アプリ（完全無料版）— セットアップガイド
 
+## 接続先
+https://furu0810.github.io/kakeibo-management-app/kakeibo-app.html
+
 ## コスト内訳
 
 | 機能 | 使用サービス | 料金 |
